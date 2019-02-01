@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="manifest" href="manifest.json">
+    <title>2048</title>
+</head>
+<span id="Gable"></span>
+<div id="restart_button"></div>
+<script>
+    //Service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').then(function (registration) {
+            console.log('OK: ', registration.scope);
+        }).catch(function (err) {
+            console.log('FAILED: ', err);
+        });
+    }
+
+    //Core
+    var board = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], gameover = false, score = 0;
+
+    function init() {
+        gameover = false;
+        board = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+        var tiles = 0;
+        while (tiles != 2) {
+            var x = Math.round(Math.random() * 3);
+            var y = Math.round(Math.random() * 3);
+            if (board[y][x] == 0) {
+                board[y][x] = Math.random() > 0.5 ? 2 : 4;
+                tiles++;
+            }
+        }
+    }
+
+    function bRandom() {
+        var space = false;
+        for (var i = 0; i < 4; i++)
+            for (var j = 0; j < 4; j++)
+                if (board[i][j] == 0)
+                    space = true;
+        if (!space) return false;
+        var rX = parseInt(Math.floor(Math.random() * 4));
+        var rY = parseInt(Math.floor(Math.random() * 4));
+        while (true) {
+            if (board[rX][rY] == 0)
+                break;
+            var rX = parseInt(Math.floor(Math.random() * 4)), rY = parseInt(Math.floor(Math.random() * 4));
+        }
+        var rNum = Math.random() < 0.5 ? 2 : 4;
+        board[rX][rY] = rNum;
+        return true;
+    }
+
+    function moveR() {
+        if (!check("right")) return false
+        var merged = [[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]];
+        for (var i = 0; i < 4; i++) {
+            for (var j = 2; j >= 0; j--) {
+                if (board[i][j] != 0) {
+                    for (var k = 3; k > j; k--) {
+                        if (board[i][k] == 0 && noBlock("right", i, j, k)) {
+                            board[i][k] = board[i][j];
+                            board[i][j] = 0;
+                            continue;
+                        } else if (board[i][k] == board[i][j] && noBlock("right", i, j, k) && !merged[i][k]) {
+                            board[i][k] += board[i][j];
+                            board[i][j] = 0;
+                            score += board[i][k];
+                            merged[i][k] = true;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        bRandom();
+        return true;
+    }
+
+    function moveL() {
+        var merged = [[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]];
+        if (!check("left")) return false;
+        for (var i = 0; i < 4; i++) {
+            for (var j = 1; j < 4; j++) {
+                if (board[i][j] != 0) {
+                    for (var k = 0; k < j; k++) {
+                        if (board[i][k] == 0 && noBlock("left", i, j, k)) {
+                            board[i][k] = board[i][j];
+                            board[i][j] = 0;
+                            continue;
+                        } else if (board[i][k] == board[i][j] && noBlock("left", i, j, k) && !merged[i][k]) {
+                            board[i][k] += board[i][j];
+                            board[i][j] = 0;
+                            score += board[i][k];
+                            merged[i][k] = true;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        bRandom();
+        return true;
+    }
+
+    function moveU() {
+        if (!check("up")) return false;
+        var merged = [[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]];
+        for (var j = 0; j < 4; j++) {
+            for (var i = 1; i < 4; i++) {
+                if (board[i][j] != 0) {
+                    for (var k = 0; k < i; k++) {
+                        if (board[k][j] == 0 && noBlock("up", i, j, k)) {
+                            board[k][j] = board[i][j];
+                            board[i][j] = 0;
+                            continue;
+                        } else if (board[k][j] == board[i][j] && noBlock("up", i, j, k) && !merged[k][j]) {
+                            board[k][j] += board[i][j];
+                            board[i][j] = 0;
+                            score += board[k][j];
+                            merged[k][j] = true;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        bRandom();
+        return true;
+    }
+
+    function moveD() {
+        if (!check("down")) return false;
+        var merged = [[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]];
+        for (var j = 0; j < 4; j++) {
+            for (var i = 2; i >= 0; i--) {
+                if (board[i][j] != 0) {
+                    for (var k = 3; k > i; k--) {
+                        if (board[k][j] == 0 && noBlock("down", i, j, k)) {
+                            board[k][j] = board[i][j];
+                            board[i][j] = 0;
+                            continue;
+                        } else if (board[k][j] == board[i][j] && noBlock("down", i, j, k) && !merged[k][j]) {
+                            board[k][j] += board[i][j];
+                            board[i][j] = 0;
+                            score += board[k][j];
+                            merged[k][j] = true;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        bRandom();
+        return true;
+    }
+
+    function check(d) {
+        if (d == "left") {
+            for (var i = 0; i < 4; i++)
+                for (var j = 1; j < 4; j++)
+                    if (board[i][j] != 0 && (board[i][j - 1] == 0 || board[i][j - 1] == board[i][j]))
+                        return true;
+            return false;
+        } else if (d == "right") {
+            for (var i = 0; i < 4; i++)
+                for (var j = 2; j >= 0; j--)
+                    if (board[i][j] != 0 && (board[i][j + 1] == 0 || board[i][j + 1] == board[i][j]))
+                        return true;
+            return false;
+        } else if (d == "up") {
+            for (var j = 0; j < 4; j++)
+                for (var i = 1; i < 4; i++)
+                    if (board[i][j] != 0 && (board[i - 1][j] == 0 || board[i - 1][j] == board[i][j]))
+                        return true;
+            return false;
+        } else if (d == "down") {
+            for (var j = 0; j < 4; j++)
+                for (var i = 2; i >= 0; i--)
+                    if (board[i][j] != 0)
+                        if (board[i][j] != 0 && (board[i + 1][j] == 0 || board[i + 1][j] == board[i][j]))
+                            return true;
+            return false;
+        }
+    }
+
+    function noBlock(d, i, j, k) {
+        if (d == "left") {
+            for (var m = k + 1; m < j; m++)
+                if (board[i][m] != 0)
+                    return false;
+            return true;
+        } else if (d == "right") {
+            for (var m = k - 1; m > j; m--)
+                if (board[i][m] != 0)
+                    return false;
+            return true;
+        } else if (d == "down") {
+            for (var m = k - 1; m > i; m--)
+                if (board[m][j] != 0)
+                    return false;
+            return true;
+        } else if (d == "up") {
+            for (var m = k + 1; m < i; m++)
+                if (board[m][j] != 0)
+                    return false;
+            return true;
+        }
+    }
+
+    function initGUI() {
+        document.getElementById("restart_button").innerHTML = "";
+        init();
+        draw();
+    }
+    initGUI();
+    //GUI
+    var px = 0, py = 0;
+    document.addEventListener("touchstart", function (e) {
+        px = e.touches[0].pageX;
+        py = e.touches[0].pageY;
+    })
+    document.addEventListener("touchend", function (e) {
+        if (Math.abs(px - e.changedTouches[0].pageX) > Math.abs(py - e.changedTouches[0].pageY))//left or right
+        {
+            if (px - e.changedTouches[0].pageX > 0)//left
+                updateGUI(37);
+            else
+                updateGUI(39);
+        } else {
+            if (py - e.changedTouches[0].pageY > 0)//up
+                updateGUI(38);
+            else//down
+                updateGUI(40);
+        }
+    })
+    document.addEventListener("keydown", function (e) {
+        updateGUI(e.keyCode);
+    })
+    function draw() {
+        var table = document.getElementById("Gable");
+        var tableHTML = '<table border style="border:double #09d"><tr></tr>';
+        for (var i = 0; i < 4; i++) {
+            tableHTML += "<tr>";
+            for (var j = 0; j < 4; j++)
+                if (board[i][j] == 0)
+                    tableHTML += ("<td>" + "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" + "</td>");
+                else if (board[i][j] < 16)
+                    tableHTML += ("<td>&nbsp;&nbsp;&nbsp;" + board[i][j] + "&nbsp;&nbsp;&nbsp;</td>");
+                else if (board[i][j] < 128)
+                    tableHTML += ("<td>&nbsp;&nbsp;" + board[i][j] + "&nbsp;&nbsp;</td>");
+                else if (board[i][j] < 1024)
+                    tableHTML += ("<td>&nbsp;" + board[i][j] + "&nbsp;</td>");
+                else
+                    tableHTML += ("<td>" + board[i][j] + "</td>");
+            tableHTML += "</tr>"
+        }
+        table.innerHTML = tableHTML + "</table>";
+    }
+    function updateGUI(keyCode) {
+        if (!gameover)
+            switch (keyCode) {
+                case 37://left
+                    moveL();
+                    break;
+                case 38://up
+                    moveU();
+                    break;
+                case 39://right
+                    moveR();
+                    break;
+                case 40://down
+                    moveD();
+                    break;
+            }
+        draw();
+        if (!check("left") && !check("right") && !check("up") && !check("down") & !gameover) {
+            gameover = true;
+            alert("GAME OVER");
+            document.getElementById("restart_button").innerHTML = '<br><input type="button" onclick="initGUI()" value="RESTART"><br>';
+        }
+    }
+</script>
+</body>
+
+</html>
